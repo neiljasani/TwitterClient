@@ -1,8 +1,12 @@
 package com.codepath.apps.restclienttemplate
 
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
+import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -14,11 +18,14 @@ import org.json.JSONException
 class TimelineActivity : AppCompatActivity() {
 
     lateinit var client: TwitterClient
+
     lateinit var rvTweets: RecyclerView
+
     lateinit var adapter: TweetsAdapter
+
     lateinit var swipeContainer: SwipeRefreshLayout
 
-    val tweets =  ArrayList<Tweet>()
+    val tweets = ArrayList<Tweet>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,17 +34,15 @@ class TimelineActivity : AppCompatActivity() {
         client = TwitterApplication.getRestClient(this)
 
         swipeContainer = findViewById(R.id.swipeContainer)
-
         swipeContainer.setOnRefreshListener {
             Log.i(TAG, "Refreshing timeline")
             populateHomeTimeline()
         }
 
-        // Configure the refreshing colors
         swipeContainer.setColorSchemeResources(android.R.color.holo_blue_bright,
             android.R.color.holo_green_light,
             android.R.color.holo_orange_light,
-            android.R.color.holo_red_light);
+            android.R.color.holo_red_light)
 
         rvTweets = findViewById(R.id.rvTweets)
         adapter = TweetsAdapter(tweets)
@@ -48,26 +53,57 @@ class TimelineActivity : AppCompatActivity() {
         populateHomeTimeline()
     }
 
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    // Handles clicks on each menu item
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.compose) {
+            // Navigate to compose screen
+            val intent = Intent(this, ComposeActivity::class.java)
+            startActivityForResult(intent, REQUEST_CODE)
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    // Called when we come back from ComposeActivity
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (resultCode == RESULT_OK && requestCode == REQUEST_CODE) {
+
+            // Get data from the intent (the tweet)
+            val tweet = data?.getParcelableExtra("tweet") as Tweet
+
+            // Update timeline
+
+            tweets.add(0, tweet)
+            adapter.notifyItemInserted(0)
+            rvTweets.smoothScrollToPosition(0)
+        }
+
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
     fun populateHomeTimeline() {
-        client.getHomeTimeline(object : JsonHttpResponseHandler(){
+        client.getHomeTimeline(object : JsonHttpResponseHandler() {
 
             override fun onSuccess(statusCode: Int, headers: Headers, json: JSON) {
-                Log.i(TAG, "onSuccess!")
+                Log.i(TAG, "Successful!")
 
                 val jsonArray = json.jsonArray
 
                 try {
                     adapter.clear()
+
                     val listOfNewTweetsRetrieved = Tweet.fromJsonArray(jsonArray)
                     tweets.addAll(listOfNewTweetsRetrieved)
                     adapter.notifyDataSetChanged()
 
-                    // call setRefreshing(false)
                     swipeContainer.setRefreshing(false)
                 } catch (e: JSONException) {
-                    Log.e(TAG, "JSON Exception $e")
+                    Log.e(TAG, "JSON Exception: $e")
                 }
-
             }
 
             override fun onFailure(
@@ -76,12 +112,13 @@ class TimelineActivity : AppCompatActivity() {
                 response: String?,
                 throwable: Throwable?
             ) {
-                Log.i(TAG, "onFailure!")
+                Log.i(TAG, "Failed. statusCode: $statusCode")
             }
-
         })
     }
-    companion object{
+
+    companion object {
         val TAG = "TimelineActivity"
+        val REQUEST_CODE = 10
     }
 }
